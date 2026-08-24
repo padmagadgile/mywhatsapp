@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>My Chat App</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+
+
+
+<body>
+
+    <div class="chat-container">
+
+        <!-- LEFT SIDEBAR -->
+        <div class="sidebar">
+
+            <div class="sidebar-header">
+                <h2>Chats</h2>
+            </div>
+
+            <div class="search-box">
+                <input type="text" placeholder="Search users...">
+            </div>
+
+            <div class="user-list">
+
+                <div class="user" data-name="Akash">
+                    <div class="avatar">A</div>
+
+                    <div class="user-info">
+                        <h3>Akash</h3>
+                        <p>Hey, how are you?</p>
+                    </div>
+                </div>
+
+                <div class="user" data-name="Rahul">
+                    <div class="avatar">R</div>
+
+                    <div class="user-info">
+                        <h3>Rahul</h3>
+                        <p>See you tomorrow</p>
+                    </div>
+                </div>
+
+                <div class="user" data-name="Sameer">
+                    <div class="avatar">S</div>
+
+                    <div class="user-info">
+                        <h3>Sameer</h3>
+                        <p>Okay bro</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- CHAT AREA -->
+        <div class="chat-area">
+
+            <div class="chat-header">
+                <div class="avatar">A</div>
+
+                <div>
+                    <h3 id="chat-user-name">Akash</h3>
+                    <p id="chat-user-status">Online</p>
+                </div>
+            </div>
+
+
+            <div class="messages" id="messages">
+
+                <div class="message received">
+                    Hey!
+                </div>
+
+                <div class="message received">
+                    How are you?
+                </div>
+
+                <div class="message sent">
+                    I'm good. What about you?
+                </div>
+
+            </div>
+
+
+            <div class="message-input">
+
+                <input
+                    id="message-input"
+                    type="text"
+                    placeholder="Type a message..."
+                >
+
+                <button id="send-button">Send</button>
+
+            </div>
+
+        </div>
+
+    </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+</body>
+</html>
