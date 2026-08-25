@@ -32,22 +32,26 @@
 
 <div class="user-list">
 
-                {% for user in users %}
+{% for user in users %}
 
-    <div class="user" data-name="{{ user['username'] }}">
+<div
+    class="user"
+    data-id="{{ user['id'] }}"
+    data-name="{{ user['username'] }}"
+>
 
-        <div class="avatar">
-            {{ user['username'][0].upper() }}
-        </div>
-
-        <div class="user-info">
-            <h3>{{ user['username'] }}</h3>
-            <p>Start a conversation</p>
-        </div>
-
+    <div class="avatar">
+        {{ user['username'][0].upper() }}
     </div>
 
-    {% endfor %}
+    <div class="user-info">
+        <h3>{{ user['username'] }}</h3>
+        <p>Start a conversation</p>
+    </div>
+
+</div>
+
+{% endfor %}
 
 </div>
 
@@ -61,7 +65,7 @@
                 <div class="avatar">A</div>
 
                 <div>
-                    <h3 id="chat-user-name">Akash</h3>
+                    <h3 id="chat-user-name" data-user-id="">Select a user</h3>
                     <p id="chat-user-status">Online</p>
                 </div>
             </div>
@@ -84,17 +88,18 @@
             </div>
 
 
-            <div class="message-input">
+            <div class="message-input-area">
 
                 <input
-                    id="message-input"
                     type="text"
+                    id="message-input"
+               
                     placeholder="Type a message..."
                 >
 
                 <button id="send-button">Send</button>
 
-            </div>
+            </div>      
 
         </div>
 

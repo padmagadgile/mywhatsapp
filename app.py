@@ -128,6 +128,95 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/send_message", methods=["POST"])
+def send_message():
+
+    if "user_id" not in session:
+        return {"success": False, "error": "Not logged in"}, 401
+
+    data = request.get_json()
+
+    receiver_id = data.get("receiver_id")
+    message = data.get("message", "").strip()
+
+    if not receiver_id or not message:
+        return {"success": False, "error": "Missing data"}, 400
+
+    connection = get_db_connection()
+
+    connection.execute(
+        """
+        INSERT INTO messages (sender_id, receiver_id, message)
+        VALUES (?, ?, ?)
+        """,
+        (session["user_id"], receiver_id, message)
+    )
+
+    connection.commit()
+    connection.close()
+
+    return {
+        "success": True,
+        "message": message
+    }
+
+
+
+
+
+@app.route("/messages/<int:user_id>")
+def get_messages(user_id):
+
+    if "user_id" not in session:
+        return {"success": False, "error": "Not logged in"}, 401
+
+    current_user_id = session["user_id"]
+
+    connection = get_db_connection()
+
+    messages = connection.execute(
+        """
+        SELECT sender_id, receiver_id, message, created_at
+        FROM messages
+        WHERE
+            (sender_id = ? AND receiver_id = ?)
+            OR
+            (sender_id = ? AND receiver_id = ?)
+        ORDER BY id ASC
+        """,
+        (
+            current_user_id,
+            user_id,
+            user_id,
+            current_user_id
+        )
+    ).fetchall()
+
+    connection.close()
+
+    return {
+        "success": True,
+        "messages": [
+            {
+                "sender_id": msg["sender_id"],
+                "receiver_id": msg["receiver_id"],
+                "message": msg["message"],
+                "created_at": msg["created_at"]
+            }
+            for msg in messages
+        ]
+    }
+
+
+
+
+
+
+
+
+
+
+
 @app.route("/logout")
 def logout():
 
