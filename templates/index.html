@@ -21,43 +21,35 @@
         <div class="sidebar">
 
             <div class="sidebar-header">
-                <h2>Chats</h2>
-            </div>
 
-            <div class="search-box">
-                <input type="text" placeholder="Search users...">
-            </div>
+            <h2>Chats</h2>
 
-            <div class="user-list">
+            <p>Logged in as: {{ current_username }}</p>
 
-                <div class="user" data-name="Akash">
-                    <div class="avatar">A</div>
-
-                    <div class="user-info">
-                        <h3>Akash</h3>
-                        <p>Hey, how are you?</p>
-                    </div>
-                </div>
-
-                <div class="user" data-name="Rahul">
-                    <div class="avatar">R</div>
-
-                    <div class="user-info">
-                        <h3>Rahul</h3>
-                        <p>See you tomorrow</p>
-                    </div>
-                </div>
-
-                <div class="user" data-name="Sameer">
-                    <div class="avatar">S</div>
-
-                    <div class="user-info">
-                        <h3>Sameer</h3>
-                        <p>Okay bro</p>
-                    </div>
-                </div>
+            <a href="{{ url_for('logout') }}">Logout</a>
 
             </div>
+
+<div class="user-list">
+
+                {% for user in users %}
+
+    <div class="user" data-name="{{ user['username'] }}">
+
+        <div class="avatar">
+            {{ user['username'][0].upper() }}
+        </div>
+
+        <div class="user-info">
+            <h3>{{ user['username'] }}</h3>
+            <p>Start a conversation</p>
+        </div>
+
+    </div>
+
+    {% endfor %}
+
+</div>
 
         </div>
 
