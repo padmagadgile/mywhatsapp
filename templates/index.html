@@ -4,107 +4,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>My Chat App</title>
-
+    <title>Chat App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
-
-
-
-<body>
+<body data-current-user-id="{{ session['user_id'] }}">
 
     <div class="chat-container">
 
-        <!-- LEFT SIDEBAR -->
+        <!-- SIDEBAR -->
         <div class="sidebar">
-
-            <div class="sidebar-header">
-
-            <h2>Chats</h2>
-
-            <p>Logged in as: {{ current_username }}</p>
-
-            <a href="{{ url_for('logout') }}">Logout</a>
-
+            <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
+                <h2>Chats</h2>
+                <button id="dark-mode-btn" title="Toggle Dark/Light Mode">🌙</button>
             </div>
 
-<div class="user-list">
+            <div class="sidebar-header">
+                <strong>{{ current_username }}</strong>
+            </div>
 
-{% for user in users %}
+            <div class="search-box">
+                <input type="text" id="search-user-input" placeholder="Search contacts...">
+            </div>
 
-<div
-    class="user"
-    data-id="{{ user['id'] }}"
-    data-name="{{ user['username'] }}"
->
+            <div class="user-list">
+                {% for user in users %}
+                <div class="user" data-id="{{ user['id'] }}" data-name="{{ user['username'] }}">
+                    <div class="avatar-container">
+                        <div class="avatar">
+                            {{ user['username'][0] | upper }}
+                        </div>
+                        <span class="status-dot {% if user['id'] in online_user_ids %}online{% else %}offline{% endif %}"></span>
+                    </div>
 
-    <div class="avatar">
-        {{ user['username'][0].upper() }}
-    </div>
+                    <div class="user-info">
+                        <h3>{{ user['username'] }}</h3>
+                        <p>Click to message</p>
+                        {% if user['unread_count'] > 0 %}
+                        <span class="unread-badge">{{ user['unread_count'] }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div style="padding: 15px; color: #777;">No other registered users.</div>
+                {% endfor %}
+            </div>  
 
-    <div class="user-info">
-        <h3>{{ user['username'] }}</h3>
-        <p>Start a conversation</p>
-    </div>
-
-</div>
-
-{% endfor %}
-
-</div>
+            <!-- LOGOUT AT THE BOTTOM -->
+            <div class="sidebar-footer">
+                <a href="{{ url_for('logout') }}" class="logout-btn">
+                    Logout
+                </a>
+            </div>
 
         </div>
-
 
         <!-- CHAT AREA -->
         <div class="chat-area">
-
             <div class="chat-header">
-                <div class="avatar">A</div>
-
+                <div class="avatar" id="chat-avatar">?</div>
                 <div>
-                    <h3 id="chat-user-name" data-user-id="">Select a user</h3>
-                    <p id="chat-user-status">Online</p>
+                    <h3 id="chat-user-name">Select a contact to begin</h3>
+                    <p id="chat-status">Select user</p>
                 </div>
             </div>
-
 
             <div class="messages" id="messages">
-
-                <div class="message received">
-                    Hey!
-                </div>
-
-                <div class="message received">
-                    How are you?
-                </div>
-
-                <div class="message sent">
-                    I'm good. What about you?
-                </div>
-
+                <!-- Messages render dynamically -->
             </div>
 
-
-            <div class="message-input-area">
-
-                <input
-                    type="text"
-                    id="message-input"
-               
-                    placeholder="Type a message..."
-                >
-
+            <div class="message-input">
+                <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
                 <button id="send-button">Send</button>
-
-            </div>      
-
+            </div>
         </div>
-
     </div>
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
+    <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
+
 </html>

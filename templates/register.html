@@ -1,37 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account - Chat App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
 
-    <title>Register - My Chat App</title>
+        body {
+            background-color: #d1d7db;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 222px;
+            background-color: #00a884;
+            z-index: 0;
+        }
+
+        .login-card {
+            position: relative;
+            z-index: 1;
+            background: #ffffff;
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 17px 50px 0 rgba(11,20,26,.19), 0 12px 15px 0 rgba(11,20,26,.24);
+            text-align: center;
+        }
+
+        .brand-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .login-card h2 {
+            color: #111b21;
+            font-size: 24px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .login-card p {
+            color: #667781;
+            font-size: 14px;
+            margin-bottom: 28px;
+        }
+
+        .flash-messages {
+            margin-bottom: 18px;
+        }
+
+        .flash-msg {
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .flash-msg.error {
+            background-color: #fde8e8;
+            color: #e53935;
+            border: 1px solid #f8b4b4;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #008069;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #e9edef;
+            background-color: #f0f2f5;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .input-group input:focus {
+            border-color: #00a884;
+            background-color: #ffffff;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 12px;
+            background-color: #00a884;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background-color: #008069;
+        }
+
+        .auth-footer {
+            margin-top: 24px;
+            font-size: 14px;
+            color: #667781;
+        }
+
+        .auth-footer a {
+            color: #00a884;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
-
 <body>
 
-    <h1>Create Account</h1>
+    <div class="login-card">
+        <div class="brand-icon">🚀</div>
+        <h2>Create Account</h2>
+        <p>Join and start messaging your friends</p>
 
-    <form action="/register" method="POST">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <div class="flash-msg {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
 
-        <div>
-            <label>Username</label>
-            <input type="text" name="username" required>
+        <form action="{{ url_for('register') }}" method="POST">
+            <div class="input-group">
+                <label for="username">Choose Username</label>
+                <input type="text" id="username" name="username" placeholder="Pick a username" required autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Create a strong password" required>
+            </div>
+
+            <button type="submit" class="btn-submit">Register Account</button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="{{ url_for('login') }}">Sign In</a>
         </div>
-
-        <br>
-
-        <div>
-            <label>Password</label>
-            <input type="password" name="password" required>
-        </div>
-
-        <br>
-
-        <button type="submit">Register</button>
-
-    </form>
+    </div>
 
 </body>
-
 </html>
