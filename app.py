@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = "change-this-secret-key-in-production"
+app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-key-in-production")
 
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'txt', 'docx', 'zip'}
@@ -64,6 +64,11 @@ def init_db():
 
     connection.commit()
     connection.close()
+
+
+# Ensure database tables exist at app startup on Render/Gunicorn
+with app.app_context():
+    init_db()
 
 
 @app.route("/")
@@ -352,5 +357,4 @@ def handle_typing(data):
 
 
 if __name__ == "__main__":
-    init_db()
     socketio.run(app, debug=True)
