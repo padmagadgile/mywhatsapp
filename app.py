@@ -65,12 +65,13 @@ def get_db_connection():
 def init_db():
     connection = get_db_connection()
 
+    # Tables creation with explicit Commit
     connection.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
+            username VARCHAR(255) UNIQUE NOT NULL,
             password TEXT NOT NULL
-        )
+        );
     """)
 
     connection.execute("""
@@ -85,18 +86,18 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (sender_id) REFERENCES users(id),
             FOREIGN KEY (receiver_id) REFERENCES users(id)
-        )
+        );
     """)
-
-    for col_def in ["is_read INTEGER DEFAULT 0", "file_url TEXT", "file_type TEXT"]:
-        try:
-            connection.execute(f"ALTER TABLE messages ADD COLUMN {col_def}")
-            connection.commit()
-        except Exception:
-            pass
 
     connection.commit()
     connection.close()
+
+# Automatic execution when Gunicorn starts
+try:
+    init_db()
+    print("PostgreSQL Tables created successfully!")
+except Exception as e:
+    print(f"Database initialization error: {e}")
 
 
 with app.app_context():
@@ -309,6 +310,17 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
+
+
+
+
+@app.route("/setup-db")
+def setup_db():
+    try:
+        init_db()
+        return "Database Tables Created Successfully! Now go to /register"
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 @socketio.on("connect")
 def handle_connect():
