@@ -20,6 +20,20 @@ document.addEventListener("DOMContentLoaded", () => {
     let selectedUserId = null;
     let typingTimeout = null;
 
+
+// Reliable Sound Player Function
+function playNotificationSound() {
+    const sound = document.getElementById("notification-sound");
+    if (sound) {
+        sound.currentTime = 0; // Sound starting point reset karto (overlapping messages sathi)
+        sound.play().catch(err => {
+            console.log("Audio play blocked or failed:", err);
+        });
+    }
+}
+
+
+
     // --- 1. AUDIO UNLOCKER FOR BROWSER AUTOPLAY POLICY ---
     function enableAudioOnInteraction() {
         if (notificationSound) {
@@ -92,33 +106,29 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Receive Real-time Message
-    socket.on("receive_message", (data) => {
+   socket.on("receive_message", (data) => {
     const senderIdStr = String(data.sender_id);
     const receiverIdStr = String(data.receiver_id);
     const selectedIdStr = String(selectedUserId);
     const currentIdStr = String(currentUserId);
 
-    // Only process if the current user is the recipient
+    // Only process if the current user is the receiver and not the sender
     if (receiverIdStr === currentIdStr && senderIdStr !== currentIdStr) {
         
         const isTabHidden = document.hidden;
         const isDifferentChat = senderIdStr !== selectedIdStr;
 
-        // Trigger Notification if user is away OR in a different chat tab
+        // Play notification sound & push notification if away or in another chat
         if (isTabHidden || isDifferentChat) {
             
-            // A. Play Audio Sound
-            if (notificationSound) {
-                notificationSound.play().catch(err => console.log("Audio playback blocked:", err));
-            }
+            // 1. Play sound reliably
+            playNotificationSound();
 
-            // B. Flash Browser Tab Title
+            // 2. Change tab title
             document.title = "🔔 New message!";
 
-            // C. Native Desktop/Mobile Push Notification
+            // 3. Desktop Native Notification
             if ("Notification" in window && Notification.permission === "granted") {
-                
-                // Get sender name from DOM
                 const senderEl = document.querySelector(`.user[data-id="${senderIdStr}"]`);
                 const senderName = senderEl ? senderEl.getAttribute("data-name") : "New Message";
                 
@@ -128,15 +138,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const notification = new Notification(senderName, {
                     body: notificationText,
-                    icon: "/static/icons/notification-icon.png", // Optional: Add custom icon path
-                    tag: `chat-msg-${senderIdStr}` // Replaces old unread notifications from same user
+                    tag: `chat-msg-${senderIdStr}`
                 });
 
-                // Auto open window and switch chat on click
                 notification.onclick = function() {
                     window.focus();
                     if (senderEl) {
-                        senderEl.click(); // Automatically opens the chat with sender
+                        senderEl.click();
                     }
                     this.close();
                 };
@@ -144,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // --- UI UPDATING LOGIC ---
+    // --- UI Update (Append message to chat screen or show badge) ---
     if (
         (senderIdStr === selectedIdStr && receiverIdStr === currentIdStr) ||
         (senderIdStr === currentIdStr && receiverIdStr === selectedIdStr)
@@ -156,7 +164,7 @@ document.addEventListener("DOMContentLoaded", () => {
             socket.emit("mark_as_read", { sender_id: senderIdStr });
         }
     } else if (receiverIdStr === currentIdStr) {
-        // Increment Unread Badge Counter in Sidebar
+        // Show unread badge counter in sidebar
         const senderUserEl = document.querySelector(`.user[data-id="${senderIdStr}"]`);
         if (senderUserEl) {
             let badge = senderUserEl.querySelector(".unread-badge");
@@ -395,3 +403,20 @@ userElements.forEach((userEl) => {
         document.title = originalTitle;
     });
 });
+
+
+
+// App var kuthepan pahila click zalya var Browser Audio Unlock hoto
+function unlockAudio() {
+    const sound = document.getElementById("notification-sound");
+    if (sound) {
+        sound.play().then(() => {
+            sound.pause();
+            sound.currentTime = 0;
+        }).catch(() => {});
+    }
+    document.removeEventListener("click", unlockAudio);
+    document.removeEventListener("keydown", unlockAudio);
+}
+document.addEventListener("click", unlockAudio);
+document.addEventListener("keydown", unlockAudio);
