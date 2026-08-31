@@ -2,7 +2,7 @@ import os
 import sqlite3
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, flash, make_response
 from flask_socketio import SocketIO, join_room, emit
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -36,7 +36,6 @@ class DBWrapper:
         cursor = self.conn.cursor()
         if self.is_postgres:
             query = query.replace('?', '%s')
-            query = query.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
         cursor.execute(query, params)
         return cursor
 
@@ -64,18 +63,19 @@ def get_db_connection():
 
 def init_db():
     connection = get_db_connection()
+    pk_type = "SERIAL PRIMARY KEY" if connection.is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
 
-    connection.execute("""
+    connection.execute(f"""
         CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
+            id {pk_type},
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
         )
     """)
 
-    connection.execute("""
+    connection.execute(f"""
         CREATE TABLE IF NOT EXISTS messages (
-            id SERIAL PRIMARY KEY,
+            id {pk_type},
             sender_id INTEGER NOT NULL,
             receiver_id INTEGER NOT NULL,
             message TEXT,
@@ -87,13 +87,6 @@ def init_db():
             FOREIGN KEY (receiver_id) REFERENCES users(id)
         )
     """)
-
-    for col_def in ["is_read INTEGER DEFAULT 0", "file_url TEXT", "file_type TEXT"]:
-        try:
-            connection.execute(f"ALTER TABLE messages ADD COLUMN {col_def}")
-            connection.commit()
-        except Exception:
-            pass
 
     connection.commit()
     connection.close()
@@ -401,6 +394,33 @@ def handle_typing(data):
         "sender_id": session["user_id"],
         "is_typing": is_typing
     }, room=f"user_{receiver_id}")
+
+
+
+
+
+@socketio.on("mark_as_read")
+def handle_mark_as_read(data):
+    if "user_id" not in session:
+        return
+    sender_id = data.get("sender_id")
+    current_user_id = session["user_id"]
+
+    connection = get_db_connection()
+    connection.execute(
+        "UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0",
+        (sender_id, current_user_id)
+    )
+    connection.commit()
+    connection.close()
+
+    socketio.emit("messages_read", {"read_by": current_user_id}, room=f"user_{sender_id}")
+
+
+
+
+
+
 
 
 if __name__ == "__main__":

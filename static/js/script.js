@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const currentUserId = document.body.getAttribute("data-current-user-id");
     const socket = io();
 
+    // DOM Elements
     const messageInput = document.getElementById("message-input");
     const sendButton = document.getElementById("send-button");
     const messagesContainer = document.getElementById("messages");
@@ -11,7 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const chatStatus = document.getElementById("chat-status");
     const searchInput = document.getElementById("search-user-input");
     const darkModeBtn = document.getElementById("dark-mode-btn");
-    const notificationSound = document.getElementById('notification-sound');
+    const attachBtn = document.getElementById("attach-btn");
+    const fileInput = document.getElementById("file-input");
+    const notificationSound = document.getElementById("notification-sound");
 
     // State Variables
     let selectedUserId = null;
@@ -57,7 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- 4. SOCKET EVENTS ---
     socket.on("connect", () => {
-        console.log("Connected to socket.");
+        console.log("Connected to socket server.");
     });
 
     // Live Online Status Updates
@@ -95,7 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const selectedIdStr = String(selectedUserId);
         const currentIdStr = String(currentUserId);
 
-        // A. Play Sound & Desktop Notification
+        // A. Play Sound & Desktop Notification for incoming messages
         if (receiverIdStr === currentIdStr && senderIdStr !== currentIdStr) {
             if (notificationSound) {
                 notificationSound.play().catch(e => console.log("Audio play blocked by browser:", e));
@@ -116,14 +119,17 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        // B. Update Chat UI
+        // B. Update Chat UI if viewing this conversation
         if (
             (senderIdStr === selectedIdStr && receiverIdStr === currentIdStr) ||
             (senderIdStr === currentIdStr && receiverIdStr === selectedIdStr)
         ) {
+            const messageType = senderIdStr === currentIdStr ? "sent" : "received";
+            
+            // Render message if sent by current user OR if received from active user
+            appendMessage(data.message, messageType, data.file_url, data.file_type, data.is_read || false);
+
             if (senderIdStr !== currentIdStr) {
-                appendMessage(data.message, "received", data.is_read || false);
-                // Mark received message as read automatically if chat window is open
                 socket.emit("mark_as_read", { sender_id: senderIdStr });
             }
         } else if (receiverIdStr === currentIdStr) {
@@ -144,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Real-Time Blue Ticks Listener
-    socket.on("messages_read_receipt", (data) => {
+    socket.on("messages_read", (data) => {
         if (String(selectedUserId) === String(data.read_by)) {
             document.querySelectorAll(".message.sent .tick").forEach(tick => {
                 tick.textContent = "✓✓";
@@ -220,20 +226,18 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 data.messages.forEach((msg) => {
                     const type = String(msg.sender_id) === String(currentUserId) ? "sent" : "received";
-                    appendMessage(msg.message, type, msg.is_read || false);
+                    appendMessage(msg.message, type, msg.file_url, msg.file_type, msg.is_read || false);
                 });
             }
 
-            // Emit mark as read event when conversation opens
-            socket.emit("mark_as_read", { sender_id: userId });
             scrollToBottom();
         } catch (error) {
             console.error("Error fetching messages:", error);
         }
     }
 
-    // --- 8. MESSAGE RENDERING WITH BLUE TICKS ---
-    function appendMessage(text, type, isRead = false) {
+    // --- 8. MESSAGE RENDERING (TEXT & FILES) ---
+    function appendMessage(text, type, fileUrl = null, fileType = null, isRead = false) {
         const emptyNotice = messagesContainer.querySelector(".empty-notice");
         if (emptyNotice) {
             emptyNotice.remove();
@@ -241,14 +245,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const messageDiv = document.createElement("div");
         messageDiv.classList.add("message", type);
-        
+
+        let contentHtml = "";
+
+        if (fileUrl) {
+            if (fileType === "image") {
+                contentHtml = `<img src="${fileUrl}" alt="Attachment" class="chat-image" style="max-width: 200px; border-radius: 8px; display: block; margin-bottom: 5px;">`;
+            } else {
+                contentHtml = `<a href="${fileUrl}" target="_blank" class="chat-file-link" style="color: inherit; text-decoration: underline;">📄 ${text || "Download File"}</a>`;
+            }
+        } else {
+            contentHtml = `<span>${text}</span>`;
+        }
+
         let ticksHtml = "";
         if (type === "sent") {
             const tickClass = isRead ? "tick blue-tick" : "tick";
             ticksHtml = `<span class="${tickClass}">${isRead ? "✓✓" : "✓"}</span>`;
         }
 
-        messageDiv.innerHTML = `<span>${text}</span> ${ticksHtml}`;
+        messageDiv.innerHTML = `${contentHtml} ${ticksHtml}`;
         messagesContainer.appendChild(messageDiv);
         scrollToBottom();
     }
@@ -257,7 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // --- 9. SEND MESSAGE & TYPING EVENTS ---
+    // --- 9. SEND MESSAGE & FILE ATTACHMENTS ---
     function sendMessage() {
         const text = messageInput.value.trim();
 
@@ -268,8 +284,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!text) return;
 
-        appendMessage(text, "sent", false);
-
         socket.emit("send_message", {
             receiver_id: selectedUserId,
             message: text
@@ -277,6 +291,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
         socket.emit("typing", { receiver_id: selectedUserId, is_typing: false });
         messageInput.value = "";
+    }
+
+    // File Upload Trigger
+    if (attachBtn && fileInput) {
+        attachBtn.addEventListener("click", () => fileInput.click());
+
+        fileInput.addEventListener("change", async () => {
+            if (!fileInput.files.length || !selectedUserId) return;
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            formData.append("receiver_id", selectedUserId);
+
+            try {
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+                const result = await response.json();
+                if (!result.success) {
+                    alert(result.error || "File upload failed.");
+                }
+            } catch (err) {
+                console.error("Upload error:", err);
+            } finally {
+                fileInput.value = "";
+            }
+        });
     }
 
     messageInput.addEventListener("input", () => {

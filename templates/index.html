@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
-<body data-current-user-id="{{ session['user_id'] }}">
+<body data-current-user-id="{{ session.get('user_id', '') }}">
 
     <div class="chat-container">
 
@@ -40,7 +40,7 @@
                     <div class="user-info">
                         <h3>{{ user['username'] }}</h3>
                         <p>Click to message</p>
-                        {% if user['unread_count'] > 0 %}
+                        {% if user.get('unread_count', 0) > 0 %}
                         <span class="unread-badge">{{ user['unread_count'] }}</span>
                         {% endif %}
                     </div>
@@ -73,7 +73,16 @@
                 <!-- Messages render dynamically -->
             </div>
 
+            <!-- Typing indicator area -->
+            <div id="typing-indicator" class="typing-indicator" style="display: none; padding: 0 15px 5px; font-size: 0.85em; color: #777;">
+                <span id="typing-user"></span> is typing...
+            </div>
+
             <div class="message-input">
+                <!-- File Upload Button & Hidden Input -->
+                <button id="attach-btn" type="button" title="Attach File">📎</button>
+                <input type="file" id="file-input" style="display: none;">
+
                 <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
                 <button id="send-button">Send</button>
             </div>
