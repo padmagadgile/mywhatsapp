@@ -17,7 +17,21 @@ document.addEventListener("DOMContentLoaded", () => {
     let selectedUserId = null;
     let typingTimeout = null;
 
-    // --- 1. GLOBAL NOTIFICATION SETUP ---
+    // --- 1. AUDIO UNLOCKER FOR BROWSER AUTOPLAY POLICY ---
+    function enableAudioOnInteraction() {
+        if (notificationSound) {
+            notificationSound.play().then(() => {
+                notificationSound.pause();
+                notificationSound.currentTime = 0;
+            }).catch(() => {});
+        }
+        document.removeEventListener('click', enableAudioOnInteraction);
+        document.removeEventListener('keydown', enableAudioOnInteraction);
+    }
+    document.addEventListener('click', enableAudioOnInteraction);
+    document.addEventListener('keydown', enableAudioOnInteraction);
+
+    // --- 2. GLOBAL NOTIFICATION SETUP ---
     if ("Notification" in window && Notification.permission !== "granted") {
         Notification.requestPermission();
     }
@@ -26,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.title = "Chat App";
     });
 
-    // --- 2. DARK MODE LOGIC ---
+    // --- 3. DARK MODE LOGIC ---
     if (localStorage.getItem("theme") === "dark") {
         document.body.classList.add("dark-theme");
         if (darkModeBtn) darkModeBtn.textContent = "☀️";
@@ -41,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- 3. SOCKET EVENTS ---
+    // --- 4. SOCKET EVENTS ---
     socket.on("connect", () => {
         console.log("Connected to socket.");
     });
@@ -74,14 +88,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // COMBINED RECEIVE MESSAGE LISTENER (Single Source of Truth)
+    // Receive Real-time Message
     socket.on("receive_message", (data) => {
         const senderIdStr = String(data.sender_id);
         const receiverIdStr = String(data.receiver_id);
         const selectedIdStr = String(selectedUserId);
         const currentIdStr = String(currentUserId);
 
-        // A. Sound & Browser Notification (When message is sent to current user by someone else)
+        // A. Play Sound & Desktop Notification
         if (receiverIdStr === currentIdStr && senderIdStr !== currentIdStr) {
             if (notificationSound) {
                 notificationSound.play().catch(e => console.log("Audio play blocked by browser:", e));
@@ -102,13 +116,15 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        // B. Chat UI Update or Unread Badge Update
+        // B. Update Chat UI
         if (
             (senderIdStr === selectedIdStr && receiverIdStr === currentIdStr) ||
             (senderIdStr === currentIdStr && receiverIdStr === selectedIdStr)
         ) {
             if (senderIdStr !== currentIdStr) {
-                appendMessage(data.message, "received");
+                appendMessage(data.message, "received", data.is_read || false);
+                // Mark received message as read automatically if chat window is open
+                socket.emit("mark_as_read", { sender_id: senderIdStr });
             }
         } else if (receiverIdStr === currentIdStr) {
             // Update unread badge for non-active conversation
@@ -127,7 +143,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // --- 4. USER SELECTION ---
+    // Real-Time Blue Ticks Listener
+    socket.on("messages_read_receipt", (data) => {
+        if (String(selectedUserId) === String(data.read_by)) {
+            document.querySelectorAll(".message.sent .tick").forEach(tick => {
+                tick.textContent = "✓✓";
+                tick.classList.add("blue-tick");
+            });
+        }
+    });
+
+    // --- 5. USER SELECTION ---
     userElements.forEach((userEl) => {
         userEl.addEventListener("click", async () => {
             const userId = userEl.getAttribute("data-id");
@@ -145,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const isOnline = userEl.querySelector(".status-dot")?.classList.contains("online");
             updateChatHeaderStatus(isOnline);
 
-            // Hide/Reset unread badge
+            // Reset unread badge
             const badge = userEl.querySelector(".unread-badge");
             if (badge) {
                 badge.textContent = "0";
@@ -164,22 +190,18 @@ document.addEventListener("DOMContentLoaded", () => {
         chatStatus.textContent = isOnline ? "Online" : "Offline";
     }
 
-    // --- 5. SEARCH / FILTER USERS ---
+    // --- 6. SEARCH / FILTER USERS ---
     if (searchInput) {
         searchInput.addEventListener("input", (e) => {
             const query = e.target.value.toLowerCase().trim();
             userElements.forEach((userEl) => {
                 const name = userEl.getAttribute("data-name").toLowerCase();
-                if (name.includes(query)) {
-                    userEl.style.display = "flex";
-                } else {
-                    userEl.style.display = "none";
-                }
+                userEl.style.display = name.includes(query) ? "flex" : "none";
             });
         });
     }
 
-    // --- 6. LOAD CHAT HISTORY ---
+    // --- 7. LOAD CHAT HISTORY ---
     async function loadMessages(userId) {
         try {
             const response = await fetch(`/messages/${userId}`);
@@ -195,21 +217,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 emptyNotice.className = "empty-notice";
                 emptyNotice.textContent = "No previous messages. Say hi!";
                 messagesContainer.appendChild(emptyNotice);
-                return;
+            } else {
+                data.messages.forEach((msg) => {
+                    const type = String(msg.sender_id) === String(currentUserId) ? "sent" : "received";
+                    appendMessage(msg.message, type, msg.is_read || false);
+                });
             }
 
-            data.messages.forEach((msg) => {
-                const type = String(msg.sender_id) === String(currentUserId) ? "sent" : "received";
-                appendMessage(msg.message, type);
-            });
-
+            // Emit mark as read event when conversation opens
+            socket.emit("mark_as_read", { sender_id: userId });
             scrollToBottom();
         } catch (error) {
             console.error("Error fetching messages:", error);
         }
     }
 
-    function appendMessage(text, type) {
+    // --- 8. MESSAGE RENDERING WITH BLUE TICKS ---
+    function appendMessage(text, type, isRead = false) {
         const emptyNotice = messagesContainer.querySelector(".empty-notice");
         if (emptyNotice) {
             emptyNotice.remove();
@@ -217,7 +241,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const messageDiv = document.createElement("div");
         messageDiv.classList.add("message", type);
-        messageDiv.textContent = text;
+        
+        let ticksHtml = "";
+        if (type === "sent") {
+            const tickClass = isRead ? "tick blue-tick" : "tick";
+            ticksHtml = `<span class="${tickClass}">${isRead ? "✓✓" : "✓"}</span>`;
+        }
+
+        messageDiv.innerHTML = `<span>${text}</span> ${ticksHtml}`;
         messagesContainer.appendChild(messageDiv);
         scrollToBottom();
     }
@@ -226,7 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // --- 7. SEND MESSAGE & TYPING EVENTS ---
+    // --- 9. SEND MESSAGE & TYPING EVENTS ---
     function sendMessage() {
         const text = messageInput.value.trim();
 
@@ -237,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!text) return;
 
-        appendMessage(text, "sent");
+        appendMessage(text, "sent", false);
 
         socket.emit("send_message", {
             receiver_id: selectedUserId,
@@ -267,72 +298,4 @@ document.addEventListener("DOMContentLoaded", () => {
             sendMessage();
         }
     });
-});
-
-
-
-
-
-
-
-
-// --- NOTIFICATION & AUDIO SETUP ---
-const notificationSound = document.getElementById('notification-sound');
-
-// Silent User Interaction Unlocker for Browser Autoplay Policy
-function enableAudioOnInteraction() {
-    if (notificationSound) {
-        notificationSound.play().then(() => {
-            notificationSound.pause();
-            notificationSound.currentTime = 0;
-        }).catch(() => {});
-    }
-    document.removeEventListener('click', enableAudioOnInteraction);
-    document.removeEventListener('keydown', enableAudioOnInteraction);
-}
-
-// User cha pahila click kinva keypress detect karun audio unlock kara
-document.addEventListener('click', enableAudioOnInteraction);
-document.addEventListener('keydown', enableAudioOnInteraction);
-
-
-
-
-
-function appendMessage(text, type, isRead = false) {
-    const emptyNotice = messagesContainer.querySelector(".empty-notice");
-    if (emptyNotice) emptyNotice.remove();
-
-    const messageDiv = document.createElement("div");
-    messageDiv.classList.add("message", type);
-    
-    let ticksHtml = "";
-    if (type === "sent") {
-        const tickClass = isRead ? "tick blue-tick" : "tick";
-        ticksHtml = `<span class="${tickClass}">${isRead ? "✓✓" : "✓"}</span>`;
-    }
-
-    messageDiv.innerHTML = `<span>${text}</span> ${ticksHtml}`;
-    messagesContainer.appendChild(messageDiv);
-    scrollToBottom();
-}
-
-
-
-// User Chat Open Kelya-var read mark kara
-async function loadMessages(userId) {
-    // Existing fetch code...
-    
-    // Emit mark as read event
-    socket.emit("mark_as_read", { sender_id: userId });
-}
-
-// Socket listener for live blue ticks update
-socket.on("messages_read_receipt", (data) => {
-    if (String(selectedUserId) === String(data.read_by)) {
-        document.querySelectorAll(".message.sent .tick").forEach(tick => {
-            tick.textContent = "✓✓";
-            tick.classList.add("blue-tick");
-        });
-    }
 });

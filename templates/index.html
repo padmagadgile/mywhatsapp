@@ -7,10 +7,8 @@
     <title>Chat App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-<!-- Prevent 404 Favicon Error -->
-<link rel="shortcut icon" href="#">
-
-
+    <!-- Prevent 404 Favicon Error -->
+    <link rel="shortcut icon" href="#">
 </head>
 
 <body data-current-user-id="{{ session['user_id'] }}">
@@ -20,37 +18,34 @@
         <!-- SIDEBAR -->
         <div class="sidebar">
 
-<!-- Profile Modal -->
-<div id="profile-modal" class="modal" style="display:none;">
-  <div class="modal-content">
-    <h3>Edit Profile</h3>
-    <form action="/update-profile" method="POST" enctype="multipart/form-data">
-      <label>Bio:</label>
-      <input type="text" name="bio" value="{{ session.get('bio', '') }}" required>
-      
-      <label>Profile Picture:</label>
-      <input type="file" name="profile_pic" accept="image/*">
-      
-      <button type="submit">Save Changes</button>
-    </form>
-  </div>
-</div>
-
-
-
-
-
-
-
-
+            <!-- Profile Modal -->
+            <div id="profile-modal" class="modal" style="display:none;">
+                <div class="modal-content">
+                    <h3>Edit Profile</h3>
+                    <form action="/update-profile" method="POST" enctype="multipart/form-data">
+                        <label>Bio:</label>
+                        <input type="text" name="bio" value="{{ session.get('bio', '') }}" required>
+                        
+                        <label>Profile Picture:</label>
+                        <input type="file" name="profile_pic" accept="image/*">
+                        
+                        <div class="modal-buttons" style="margin-top: 15px;">
+                            <button type="submit">Save Changes</button>
+                            <button type="button" onclick="document.getElementById('profile-modal').style.display='none'">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
                 <h2>Chats</h2>
                 <button id="dark-mode-btn" title="Toggle Dark/Light Mode">🌙</button>
             </div>
 
-            <div class="sidebar-header">
+            <!-- Current Logged In User Header + Edit Profile Button -->
+            <div class="sidebar-header" style="display: flex; align-items: center; justify-content: space-between;">
                 <strong>{{ current_username }}</strong>
+                <button onclick="document.getElementById('profile-modal').style.display='flex'" style="background:none; border:none; cursor:pointer;" title="Edit Profile">⚙️</button>
             </div>
 
             <div class="search-box">
@@ -69,7 +64,7 @@
 
                     <div class="user-info">
                         <h3>{{ user['username'] }}</h3>
-                        <p>Click to message</p>
+                        <p>{{ user.get('bio', 'Click to message') }}</p>
                         {% if user['unread_count'] > 0 %}
                         <span class="unread-badge">{{ user['unread_count'] }}</span>
                         {% endif %}
@@ -110,64 +105,12 @@
         </div>
     </div>
 
+    <!-- Notification Sound Tag -->
+    <audio id="notification-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+    <!-- JS Scripts (Only External Script Calls) -->
     <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-
-
-<!-- Notification Audio (</body> tag chya agdi var paste kara) -->
-<audio id="notification-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
-
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script>
-  const socket = io();
-  const currentUserId = "{{ session['user_id'] }}";
-  const notificationSound = document.getElementById('notification-sound');
-
-  // 1. Browser Push Notification Permission Request
-  function requestNotificationPermission() {
-    if ("Notification" in window && Notification.permission !== "granted") {
-      Notification.requestPermission();
-    }
-  }
-
-  // Page load zalyavar permission vichara
-  document.addEventListener("DOMContentLoaded", requestNotificationPermission);
-
-  // 2. Real-time Incoming Message Listener
-  socket.on("receive_message", (data) => {
-    // Check kara ki message dusryane patavla ahe ani to tumchyasathich ahe
-    if (data.receiver_id == currentUserId && data.sender_id != currentUserId) {
-      
-      // A. Notification Sound Play Kara
-      if (notificationSound) {
-        notificationSound.play().catch(e => console.log("Audio play blocked:", e));
-      }
-
-      // B. Tab Title Alert
-      document.title = "🔔 New Message!";
-
-      // C. Desktop Notification (Jevha Tab background madhe asel)
-      if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
-        const notification = new Notification("New Message", {
-          body: data.message || "Sent a file attachment",
-          tag: `msg-${data.sender_id}`
-        });
-
-        notification.onclick = function() {
-          window.focus();
-          this.close();
-        };
-      }
-    }
-  });
-
-  // User ne tab var click kelya var title normal kara
-  window.addEventListener("focus", () => {
-    document.title = "Chat App";
-  });
-</script>
-
-
 
 </body>
 

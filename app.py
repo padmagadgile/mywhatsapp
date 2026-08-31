@@ -64,10 +64,9 @@ def get_db_connection():
 
 def init_db():
     conn = get_db_connection()
-    cur = conn.cursor()
     
-    # Users Table Update (Profile Pic & Bio)
-    cur.execute('''
+    # 1. Users Table
+    conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             username VARCHAR(80) UNIQUE NOT NULL,
@@ -77,32 +76,47 @@ def init_db():
         );
     ''')
 
-    # Messages Table Update (is_read column)
-    cur.execute('''
+    # 2. Messages Table
+    conn.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id SERIAL PRIMARY KEY,
             sender_id INT NOT NULL,
             receiver_id INT NOT NULL,
             message TEXT NOT NULL,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_read BOOLEAN DEFAULT FALSE
+            file_url TEXT DEFAULT NULL,
+            file_type TEXT DEFAULT NULL,
+            is_read INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
     
+    # 3. Safe Dynamic Migrations for Existing Tables
+    migrations = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio VARCHAR(255) DEFAULT 'Hey there! I am using Chat App.'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_pic VARCHAR(255) DEFAULT 'default.png'",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_url TEXT DEFAULT NULL",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_type TEXT DEFAULT NULL",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_read INT DEFAULT 0",
+        "ALTER TABLE messages ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    ]
+
+    for mig in migrations:
+        try:
+            conn.execute(mig)
+        except Exception:
+            pass  # Ignore if column already exists in SQLite/DB
+
     conn.commit()
-    cur.close()
     conn.close()
 
-# Automatic execution when Gunicorn starts
-try:
-    init_db()
-    print("PostgreSQL Tables created successfully!")
-except Exception as e:
-    print(f"Database initialization error: {e}")
 
-
+# Initialize DB on App startup
 with app.app_context():
-    init_db()
+    try:
+        init_db()
+        print("Database schema successfully initialized!")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
 
 
 @app.route("/")
@@ -115,14 +129,14 @@ def home():
 
     cur = connection.execute(
         """
-        SELECT u.id, u.username,
+        SELECT u.id, u.username, u.bio, u.profile_pic,
                COUNT(m.id) AS unread_count
         FROM users u
         LEFT JOIN messages m ON m.sender_id = u.id 
                              AND m.receiver_id = ? 
-                             AND m.is_read = 0
+                             AND (m.is_read = 0 OR m.is_read IS NULL)
         WHERE u.id != ?
-        GROUP BY u.id, u.username
+        GROUP BY u.id, u.username, u.bio, u.profile_pic
         """,
         (current_id, current_id)
     )
@@ -186,12 +200,49 @@ def login():
         if user and check_password_hash(user["password"], password):
             session["user_id"] = user["id"]
             session["username"] = user["username"]
+            session["bio"] = user.get("bio", "Hey there! I am using Chat App.")
+            session["profile_pic"] = user.get("profile_pic", "default.png")
             return redirect(url_for("home"))
 
         flash("Invalid username or password.", "error")
         return render_template("login.html")
 
     return render_template("login.html")
+
+
+@app.route("/update-profile", methods=["POST"])
+def update_profile():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    bio = request.form.get("bio", "").strip()
+    user_id = session["user_id"]
+    connection = get_db_connection()
+
+    if 'profile_pic' in request.files:
+        file = request.files['profile_pic']
+        if file and file.filename != '' and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            unique_filename = f"p_{user_id}_{filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            file.save(filepath)
+            
+            connection.execute(
+                "UPDATE users SET bio = ?, profile_pic = ? WHERE id = ?",
+                (bio, unique_filename, user_id)
+            )
+            session["profile_pic"] = unique_filename
+        else:
+            connection.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, user_id))
+    else:
+        connection.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, user_id))
+
+    connection.commit()
+    connection.close()
+
+    session["bio"] = bio
+    flash("Profile updated successfully!", "success")
+    return redirect(url_for("home"))
 
 
 @app.route("/messages/<int:user_id>")
@@ -208,7 +259,7 @@ def get_messages(user_id):
     )
     connection.commit()
 
-    socketio.emit("messages_read", {"read_by": current_user_id}, room=f"user_{user_id}")
+    socketio.emit("messages_read_receipt", {"read_by": current_user_id, "sender_id": user_id}, room=f"user_{user_id}")
 
     cur = connection.execute(
         """
@@ -233,7 +284,7 @@ def get_messages(user_id):
                 "message": msg["message"],
                 "file_url": msg["file_url"],
                 "file_type": msg["file_type"],
-                "is_read": msg["is_read"],
+                "is_read": bool(msg["is_read"]),
                 "created_at": str(msg["created_at"])
             }
             for msg in messages
@@ -241,87 +292,11 @@ def get_messages(user_id):
     }
 
 
-@app.route("/upload", methods=["POST"])
-def upload_file():
-    if "user_id" not in session:
-        return {"success": False, "error": "Not logged in"}, 401
-
-    if 'file' not in request.files:
-        return {"success": False, "error": "No file attached"}, 400
-
-    file = request.files['file']
-    receiver_id = request.form.get('receiver_id')
-
-    if file.filename == '' or not receiver_id:
-        return {"success": False, "error": "Invalid request"}, 400
-
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        unique_filename = f"{session['user_id']}_{int(os.urandom(4).hex(), 16)}_{filename}"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(filepath)
-
-        file_url = url_for('static', filename=f'uploads/{unique_filename}')
-        ext = filename.rsplit('.', 1)[1].lower()
-        file_type = 'image' if ext in ['png', 'jpg', 'jpeg', 'gif'] else 'file'
-
-        sender_id = session["user_id"]
-        connection = get_db_connection()
-        
-        if connection.is_postgres:
-            cur = connection.execute(
-                "INSERT INTO messages (sender_id, receiver_id, message, file_url, file_type) VALUES (?, ?, ?, ?, ?) RETURNING id, created_at",
-                (sender_id, receiver_id, filename, file_url, file_type)
-            )
-            row = cur.fetchone()
-            msg_id = row["id"]
-            created_at = str(row["created_at"])
-        else:
-            cur = connection.execute(
-                "INSERT INTO messages (sender_id, receiver_id, message, file_url, file_type) VALUES (?, ?, ?, ?, ?)",
-                (sender_id, receiver_id, filename, file_url, file_type)
-            )
-            msg_id = cur.lastrowid
-            created_at = str(connection.execute("SELECT created_at FROM messages WHERE id = ?", (msg_id,)).fetchone()["created_at"])
-
-        connection.commit()
-        connection.close()
-
-        payload = {
-            "id": msg_id,
-            "sender_id": sender_id,
-            "receiver_id": int(receiver_id),
-            "message": filename,
-            "file_url": file_url,
-            "file_type": file_type,
-            "is_read": 0,
-            "created_at": created_at
-        }
-
-        socketio.emit("receive_message", payload, room=f"user_{receiver_id}")
-        socketio.emit("receive_message", payload, room=f"user_{sender_id}")
-
-        return {"success": True, "data": payload}
-
-    return {"success": False, "error": "File type not allowed"}, 400
-
-
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
-
-
-
-
-@app.route("/setup-db")
-def setup_db():
-    try:
-        init_db()
-        return "Database Tables Created Successfully! Now go to /register"
-    except Exception as e:
-        return f"Error: {str(e)}"
 
 @socketio.on("connect")
 def handle_connect():
@@ -416,25 +391,23 @@ def handle_typing(data):
     }, room=f"user_{receiver_id}")
 
 
-
 @socketio.on('mark_as_read')
 def handle_mark_as_read(data):
-    sender_id = data.get('sender_id') # The user who sent the messages
-    receiver_id = session.get('user_id') # Current logged in user reading them
+    sender_id = data.get('sender_id') 
+    receiver_id = session.get('user_id') 
     
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "UPDATE messages SET is_read = TRUE WHERE sender_id = %s AND receiver_id = %s AND is_read = FALSE",
+    if not sender_id or not receiver_id:
+        return
+
+    connection = get_db_connection()
+    connection.execute(
+        "UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0",
         (sender_id, receiver_id)
     )
-    conn.commit()
-    cur.close()
-    conn.close()
+    connection.commit()
+    connection.close()
     
-    # Notify the sender that their messages were read (Blue Ticks)
-    emit('messages_read_receipt', {'read_by': receiver_id, 'sender_id': sender_id}, room=str(sender_id))
-
+    emit('messages_read_receipt', {'read_by': receiver_id, 'sender_id': sender_id}, room=f"user_{sender_id}")
 
 
 if __name__ == "__main__":
