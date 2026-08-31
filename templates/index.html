@@ -8,8 +8,8 @@
 </head>
 <body data-current-user-id="{{ session['user_id'] }}">
 
-    <!-- 1. PROFILE MODAL (EXACTLY HERE: Top level of body tag) -->
-    <div id="profile-modal" class="modal">
+    <!-- Hidden Profile Modal Overlay -->
+    <div id="profile-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <h3>Edit Profile</h3>
             <form action="/update-profile" method="POST" enctype="multipart/form-data">
@@ -27,58 +27,56 @@
         </div>
     </div>
 
-    <!-- 2. MAIN APPLICATION CONTAINER -->
+    <!-- Main Chat Container -->
     <div class="chat-container">
         
-<!-- Sidebar -->
-<div class="sidebar">
-    <div class="sidebar-header">
-        <!-- User Profile Header & Edit Button -->
-        <div class="user-profile-summary" onclick="document.getElementById('profile-modal').style.display='flex'">
-           <img src="{{ url_for('static', filename='uploads/' + session.get('profile_pic', 'default.png')) }}" 
-     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=User&amp;background=0D8ABC&amp;color=fff';" 
-     class="avatar" alt="Avatar">
-            <div class="user-details">
-                <h4>{{ session.get('username', 'User') }}</h4>
-                <p class="bio-text">{{ session.get('bio', 'Hey there!') }}</p>
-            </div>
-        </div>
-        <button id="theme-toggle" class="theme-btn">🌙</button>
-    </div>
-
-    <div class="search-box">
-        <input type="text" id="user-search" placeholder="Search contacts...">
-    </div>
-
-    <!-- Users List -->
-    <div class="users-list" id="users-list">
-        {% for u in users %}
-        <div class="user-item" data-user-id="{{ u.id }}" data-username="{{ u.username }}" onclick="selectUser(this.dataset.userId, this.dataset.username)">
-            <div class="avatar-container">
-                <img src="{{ url_for('static', filename='uploads/' + (u.profile_pic or 'default.png')) }}" 
-                     onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ u.username | urlencode }}&amp;background=0D8ABC&amp;color=fff';" 
-                     class="avatar" alt="Avatar">
-                <span class="status-indicator {% if u.id in online_user_ids %}online{% else %}offline{% endif %}" id="status-{{ u.id }}"></span>
-            </div>
-            <div class="user-info">
-                <div class="user-header">
-                    <span class="username">{{ u.username }}</span>
-                    {% if u.unread_count and u.unread_count > 0 %}
-                    <span class="badge" id="badge-{{ u.id }}">{{ u.unread_count }}</span>
-                    {% endif %}
+        <!-- Sidebar Left -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-profile-summary" onclick="document.getElementById('profile-modal').style.display='flex'">
+                    <img src="{{ url_for('static', filename='uploads/' + session.get('profile_pic', 'default.png')) }}" 
+                         onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff';" 
+                         class="avatar" alt="Avatar">
+                    <div class="user-details">
+                        <h4>{{ session.get('username', 'User') }}</h4>
+                        <p class="bio-text">{{ session.get('bio', 'Hey there!') }}</p>
+                    </div>
                 </div>
-                <p class="user-bio">{{ u.bio or 'Hey there! I am using Chat App.' }}</p>
+                <button id="theme-toggle" class="theme-btn">🌙</button>
+            </div>
+
+            <div class="search-box">
+                <input type="text" id="user-search" placeholder="Search contacts...">
+            </div>
+
+            <div class="users-list" id="users-list">
+                {% for u in users %}
+                <div class="user-item" data-user-id="{{ u.id }}" data-username="{{ u.username }}" onclick="selectUser(this.dataset.userId, this.dataset.username)">
+                    <div class="avatar-container">
+                        <img src="{{ url_for('static', filename='uploads/' + (u.profile_pic or 'default.png')) }}" 
+                             onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff';" 
+                             class="avatar" alt="Avatar">
+                        <span class="status-indicator {% if u.id in online_user_ids %}online{% else %}offline{% endif %}" id="status-{{ u.id }}"></span>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-header">
+                            <span class="username">{{ u.username }}</span>
+                            {% if u.unread_count and u.unread_count > 0 %}
+                            <span class="badge" id="badge-{{ u.id }}">{{ u.unread_count }}</span>
+                            {% endif %}
+                        </div>
+                        <p class="user-bio">{{ u.bio or 'Hey there! I am using Chat App.' }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="sidebar-footer">
+                <a href="/logout" class="logout-btn">Logout</a>
             </div>
         </div>
-        {% endfor %}
-    </div>
 
-    <div class="sidebar-footer">
-        <a href="/logout" class="logout-btn">Logout</a>
-    </div>
-</div>
-
-        <!-- Chat Main Area -->
+        <!-- Chat Area Right -->
         <div class="chat-area">
             <div class="chat-header" id="chat-header" style="display: none;">
                 <div class="chat-header-user">
@@ -93,7 +91,6 @@
                 </div>
             </div>
 
-            <!-- Input Bar -->
             <form class="message-input-bar" id="message-form" style="display: none;" onsubmit="sendMessage(event)">
                 <label for="file-input" class="attachment-btn">📎</label>
                 <input type="file" id="file-input" style="display: none;" onchange="uploadFile()">
@@ -104,7 +101,6 @@
 
     </div>
 
-    <!-- Socket.IO Client Libs & Scripts -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
