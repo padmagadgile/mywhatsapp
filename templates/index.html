@@ -8,7 +8,7 @@
 </head>
 <body data-current-user-id="{{ session['user_id'] }}">
 
-    <!-- Full Screen Centered Edit Profile Modal -->
+    <!-- Hidden Edit Profile Overlay -->
     <div id="profile-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <h3>Edit Profile</h3>
@@ -27,10 +27,10 @@
         </div>
     </div>
 
-    <!-- Main WhatsApp Application Container -->
+    <!-- Main Container Layout -->
     <div class="chat-container">
         
-        <!-- Sidebar Left -->
+        <!-- Left Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="user-profile-summary" onclick="document.getElementById('profile-modal').style.display='flex'">
@@ -42,7 +42,7 @@
                         <p class="bio-text">{{ session.get('bio', 'Hey there! I am using Chat App.') }}</p>
                     </div>
                 </div>
-                <button id="theme-toggle" class="theme-btn" title="Toggle Dark/Light Mode">🌙</button>
+                <button id="theme-toggle" class="theme-btn">🌙</button>
             </div>
 
             <div class="search-box">
@@ -76,7 +76,7 @@
             </div>
         </div>
 
-        <!-- Chat Main Area Right -->
+        <!-- Right Chat Panel -->
         <div class="chat-area">
             <div class="chat-header" id="chat-header" style="display: none;">
                 <div class="chat-header-user">
@@ -88,7 +88,7 @@
             <div class="messages-container" id="messages-container">
                 <div class="empty-chat-placeholder">
                     <h2>WhatsApp Web</h2>
-                    <p>Send and receive messages seamlessly without keeping your phone online.</p>
+                    <p>Send and receive messages seamlessly.</p>
                 </div>
             </div>
 
