@@ -93,61 +93,86 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Receive Real-time Message
     socket.on("receive_message", (data) => {
-        const senderIdStr = String(data.sender_id);
-        const receiverIdStr = String(data.receiver_id);
-        const selectedIdStr = String(selectedUserId);
-        const currentIdStr = String(currentUserId);
+    const senderIdStr = String(data.sender_id);
+    const receiverIdStr = String(data.receiver_id);
+    const selectedIdStr = String(selectedUserId);
+    const currentIdStr = String(currentUserId);
 
-        // A. Play Sound & Desktop Notification for incoming messages
-        if (receiverIdStr === currentIdStr && senderIdStr !== currentIdStr) {
+    // Only process if the current user is the recipient
+    if (receiverIdStr === currentIdStr && senderIdStr !== currentIdStr) {
+        
+        const isTabHidden = document.hidden;
+        const isDifferentChat = senderIdStr !== selectedIdStr;
+
+        // Trigger Notification if user is away OR in a different chat tab
+        if (isTabHidden || isDifferentChat) {
+            
+            // A. Play Audio Sound
             if (notificationSound) {
-                notificationSound.play().catch(e => console.log("Audio play blocked by browser:", e));
+                notificationSound.play().catch(err => console.log("Audio playback blocked:", err));
             }
 
-            document.title = "🔔 New Message!";
+            // B. Flash Browser Tab Title
+            document.title = "🔔 New message!";
 
-            if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
-                const notification = new Notification("New Message", {
-                    body: data.message || "Sent an attachment",
-                    tag: `msg-${data.sender_id}`
+            // C. Native Desktop/Mobile Push Notification
+            if ("Notification" in window && Notification.permission === "granted") {
+                
+                // Get sender name from DOM
+                const senderEl = document.querySelector(`.user[data-id="${senderIdStr}"]`);
+                const senderName = senderEl ? senderEl.getAttribute("data-name") : "New Message";
+                
+                const notificationText = data.file_url 
+                    ? "📷 Sent an attachment" 
+                    : (data.message.length > 40 ? data.message.substring(0, 40) + "..." : data.message);
+
+                const notification = new Notification(senderName, {
+                    body: notificationText,
+                    icon: "/static/icons/notification-icon.png", // Optional: Add custom icon path
+                    tag: `chat-msg-${senderIdStr}` // Replaces old unread notifications from same user
                 });
 
+                // Auto open window and switch chat on click
                 notification.onclick = function() {
                     window.focus();
+                    if (senderEl) {
+                        senderEl.click(); // Automatically opens the chat with sender
+                    }
                     this.close();
                 };
             }
         }
+    }
 
-        // B. Update Chat UI if viewing this conversation
-        if (
-            (senderIdStr === selectedIdStr && receiverIdStr === currentIdStr) ||
-            (senderIdStr === currentIdStr && receiverIdStr === selectedIdStr)
-        ) {
-            const messageType = senderIdStr === currentIdStr ? "sent" : "received";
-            
-            // Render message if sent by current user OR if received from active user
-            appendMessage(data.message, messageType, data.file_url, data.file_type, data.is_read || false);
+    // --- UI UPDATING LOGIC ---
+    if (
+        (senderIdStr === selectedIdStr && receiverIdStr === currentIdStr) ||
+        (senderIdStr === currentIdStr && receiverIdStr === selectedIdStr)
+    ) {
+        const messageType = senderIdStr === currentIdStr ? "sent" : "received";
+        appendMessage(data.message, messageType, data.file_url, data.file_type, data.is_read || false);
 
-            if (senderIdStr !== currentIdStr) {
-                socket.emit("mark_as_read", { sender_id: senderIdStr });
-            }
-        } else if (receiverIdStr === currentIdStr) {
-            // Update unread badge for non-active conversation
-            const senderUserEl = document.querySelector(`.user[data-id="${senderIdStr}"]`);
-            if (senderUserEl) {
-                let badge = senderUserEl.querySelector(".unread-badge");
-                if (!badge) {
-                    badge = document.createElement("span");
-                    badge.className = "unread-badge";
-                    badge.textContent = "0";
-                    senderUserEl.querySelector(".user-info").appendChild(badge);
-                }
-                badge.textContent = parseInt(badge.textContent || "0") + 1;
-                badge.style.display = "inline-block";
-            }
+        if (senderIdStr !== currentIdStr && !document.hidden) {
+            socket.emit("mark_as_read", { sender_id: senderIdStr });
         }
-    });
+    } else if (receiverIdStr === currentIdStr) {
+        // Increment Unread Badge Counter in Sidebar
+        const senderUserEl = document.querySelector(`.user[data-id="${senderIdStr}"]`);
+        if (senderUserEl) {
+            let badge = senderUserEl.querySelector(".unread-badge");
+            if (!badge) {
+                badge = document.createElement("span");
+                badge.className = "unread-badge";
+                badge.textContent = "0";
+                const infoDiv = senderUserEl.querySelector(".user-info") || senderUserEl;
+                infoDiv.appendChild(badge);
+            }
+            let count = parseInt(badge.textContent || "0") + 1;
+            badge.textContent = count > 99 ? "99+" : count;
+            badge.style.display = "inline-block";
+        }
+    }
+});
 
     // Real-Time Blue Ticks Listener
     socket.on("messages_read", (data) => {
@@ -339,5 +364,34 @@ document.addEventListener("DOMContentLoaded", () => {
             event.preventDefault();
             sendMessage();
         }
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+userElements.forEach((userEl) => {
+    userEl.addEventListener("click", async () => {
+        const userId = userEl.getAttribute("data-id");
+        
+        // Hide/Clear Unread Badge Counter
+        const badge = userEl.querySelector(".unread-badge");
+        if (badge) {
+            badge.textContent = "0";
+            badge.style.display = "none";
+        }
+
+        // Reset Tab Title
+        document.title = originalTitle;
     });
 });

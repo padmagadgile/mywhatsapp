@@ -744,3 +744,34 @@ body {
 .message-input button:hover {
     background: #0d7568;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+.user-info {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.unread-badge {
+    background-color: #007bff;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-left: auto;
+    display: none; /* Hidden by default until new messages arrive */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
