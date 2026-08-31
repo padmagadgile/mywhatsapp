@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat App</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+<!-- Prevent 404 Favicon Error -->
+<link rel="shortcut icon" href="#">
+
+
 </head>
 
 <body data-current-user-id="{{ session['user_id'] }}">
