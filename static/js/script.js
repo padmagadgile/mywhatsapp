@@ -268,3 +268,29 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+
+
+
+
+
+
+
+// --- NOTIFICATION & AUDIO SETUP ---
+const notificationSound = document.getElementById('notification-sound');
+
+// Silent User Interaction Unlocker for Browser Autoplay Policy
+function enableAudioOnInteraction() {
+    if (notificationSound) {
+        notificationSound.play().then(() => {
+            notificationSound.pause();
+            notificationSound.currentTime = 0;
+        }).catch(() => {});
+    }
+    document.removeEventListener('click', enableAudioOnInteraction);
+    document.removeEventListener('keydown', enableAudioOnInteraction);
+}
+
+// User cha pahila click kinva keypress detect karun audio unlock kara
+document.addEventListener('click', enableAudioOnInteraction);
+document.addEventListener('keydown', enableAudioOnInteraction);
