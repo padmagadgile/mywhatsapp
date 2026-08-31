@@ -412,3 +412,5 @@ def handle_mark_as_read(data):
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
+
+
