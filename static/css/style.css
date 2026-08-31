@@ -922,3 +922,16 @@ body.dark-theme .logout-btn {
 body.dark-theme .logout-btn:hover {
     background-color: #c62828;
 }
+
+
+
+.tick {
+    font-size: 12px;
+    margin-left: 5px;
+    color: #888888;
+}
+
+.tick.blue-tick {
+    color: #34B7F1; /* WhatsApp Blue Color */
+    font-weight: bold;
+}

@@ -63,34 +63,35 @@ def get_db_connection():
 
 
 def init_db():
-    connection = get_db_connection()
-
-    # Tables creation with explicit Commit
-    connection.execute("""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Users Table Update (Profile Pic & Bio)
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
-            username VARCHAR(255) UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            username VARCHAR(80) UNIQUE NOT NULL,
+            password VARCHAR(200) NOT NULL,
+            bio VARCHAR(255) DEFAULT 'Hey there! I am using Chat App.',
+            profile_pic VARCHAR(255) DEFAULT 'default.png'
         );
-    """)
+    ''')
 
-    connection.execute("""
+    # Messages Table Update (is_read column)
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id SERIAL PRIMARY KEY,
-            sender_id INTEGER NOT NULL,
-            receiver_id INTEGER NOT NULL,
-            message TEXT,
-            file_url TEXT,
-            file_type TEXT,
-            is_read INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (sender_id) REFERENCES users(id),
-            FOREIGN KEY (receiver_id) REFERENCES users(id)
+            sender_id INT NOT NULL,
+            receiver_id INT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_read BOOLEAN DEFAULT FALSE
         );
-    """)
-
-    connection.commit()
-    connection.close()
+    ''')
+    
+    conn.commit()
+    cur.close()
+    conn.close()
 
 # Automatic execution when Gunicorn starts
 try:
@@ -413,6 +414,27 @@ def handle_typing(data):
         "sender_id": session["user_id"],
         "is_typing": is_typing
     }, room=f"user_{receiver_id}")
+
+
+
+@socketio.on('mark_as_read')
+def handle_mark_as_read(data):
+    sender_id = data.get('sender_id') # The user who sent the messages
+    receiver_id = session.get('user_id') # Current logged in user reading them
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE messages SET is_read = TRUE WHERE sender_id = %s AND receiver_id = %s AND is_read = FALSE",
+        (sender_id, receiver_id)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    # Notify the sender that their messages were read (Blue Ticks)
+    emit('messages_read_receipt', {'read_by': receiver_id, 'sender_id': sender_id}, room=str(sender_id))
+
 
 
 if __name__ == "__main__":

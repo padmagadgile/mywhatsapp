@@ -294,3 +294,45 @@ function enableAudioOnInteraction() {
 // User cha pahila click kinva keypress detect karun audio unlock kara
 document.addEventListener('click', enableAudioOnInteraction);
 document.addEventListener('keydown', enableAudioOnInteraction);
+
+
+
+
+
+function appendMessage(text, type, isRead = false) {
+    const emptyNotice = messagesContainer.querySelector(".empty-notice");
+    if (emptyNotice) emptyNotice.remove();
+
+    const messageDiv = document.createElement("div");
+    messageDiv.classList.add("message", type);
+    
+    let ticksHtml = "";
+    if (type === "sent") {
+        const tickClass = isRead ? "tick blue-tick" : "tick";
+        ticksHtml = `<span class="${tickClass}">${isRead ? "✓✓" : "✓"}</span>`;
+    }
+
+    messageDiv.innerHTML = `<span>${text}</span> ${ticksHtml}`;
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+
+
+// User Chat Open Kelya-var read mark kara
+async function loadMessages(userId) {
+    // Existing fetch code...
+    
+    // Emit mark as read event
+    socket.emit("mark_as_read", { sender_id: userId });
+}
+
+// Socket listener for live blue ticks update
+socket.on("messages_read_receipt", (data) => {
+    if (String(selectedUserId) === String(data.read_by)) {
+        document.querySelectorAll(".message.sent .tick").forEach(tick => {
+            tick.textContent = "✓✓";
+            tick.classList.add("blue-tick");
+        });
+    }
+});
