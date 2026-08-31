@@ -10,36 +10,41 @@ document.addEventListener("DOMContentLoaded", () => {
     const chatAvatar = document.getElementById("chat-avatar");
     const chatStatus = document.getElementById("chat-status");
     const searchInput = document.getElementById("search-user-input");
-const darkModeBtn = document.getElementById("dark-mode-btn");
+    const darkModeBtn = document.getElementById("dark-mode-btn");
+    const notificationSound = document.getElementById('notification-sound');
 
-// Check saved preference on load
-if (localStorage.getItem("theme") === "dark") {
-    document.body.classList.add("dark-theme");
-    if (darkModeBtn) darkModeBtn.textContent = "☀️";
-}
-
-// Toggle on click
-if (darkModeBtn) {
-    darkModeBtn.addEventListener("click", () => {
-        document.body.classList.toggle("dark-theme");
-        const isDark = document.body.classList.contains("dark-theme");
-        localStorage.setItem("theme", isDark ? "dark" : "light");
-        darkModeBtn.textContent = isDark ? "☀️" : "🌙";
-    });
-}
+    // State Variables
     let selectedUserId = null;
     let typingTimeout = null;
 
-    // --- SOCKET EVENTS ---
+    // --- 1. GLOBAL NOTIFICATION SETUP ---
+    if ("Notification" in window && Notification.permission !== "granted") {
+        Notification.requestPermission();
+    }
+
+    window.addEventListener("focus", () => {
+        document.title = "Chat App";
+    });
+
+    // --- 2. DARK MODE LOGIC ---
+    if (localStorage.getItem("theme") === "dark") {
+        document.body.classList.add("dark-theme");
+        if (darkModeBtn) darkModeBtn.textContent = "☀️";
+    }
+
+    if (darkModeBtn) {
+        darkModeBtn.addEventListener("click", () => {
+            document.body.classList.toggle("dark-theme");
+            const isDark = document.body.classList.contains("dark-theme");
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+            darkModeBtn.textContent = isDark ? "☀️" : "🌙";
+        });
+    }
+
+    // --- 3. SOCKET EVENTS ---
     socket.on("connect", () => {
         console.log("Connected to socket.");
     });
-
-
-
-
-
-    
 
     // Live Online Status Updates
     socket.on("user_status", (data) => {
@@ -69,13 +74,35 @@ if (darkModeBtn) {
         }
     });
 
-    // Receive Message & Update Unread Badges
+    // COMBINED RECEIVE MESSAGE LISTENER (Single Source of Truth)
     socket.on("receive_message", (data) => {
         const senderIdStr = String(data.sender_id);
         const receiverIdStr = String(data.receiver_id);
         const selectedIdStr = String(selectedUserId);
         const currentIdStr = String(currentUserId);
 
+        // A. Sound & Browser Notification (When message is sent to current user by someone else)
+        if (receiverIdStr === currentIdStr && senderIdStr !== currentIdStr) {
+            if (notificationSound) {
+                notificationSound.play().catch(e => console.log("Audio play blocked by browser:", e));
+            }
+
+            document.title = "🔔 New Message!";
+
+            if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+                const notification = new Notification("New Message", {
+                    body: data.message || "Sent an attachment",
+                    tag: `msg-${data.sender_id}`
+                });
+
+                notification.onclick = function() {
+                    window.focus();
+                    this.close();
+                };
+            }
+        }
+
+        // B. Chat UI Update or Unread Badge Update
         if (
             (senderIdStr === selectedIdStr && receiverIdStr === currentIdStr) ||
             (senderIdStr === currentIdStr && receiverIdStr === selectedIdStr)
@@ -100,7 +127,7 @@ if (darkModeBtn) {
         }
     });
 
-    // --- USER SELECTION ---
+    // --- 4. USER SELECTION ---
     userElements.forEach((userEl) => {
         userEl.addEventListener("click", async () => {
             const userId = userEl.getAttribute("data-id");
@@ -137,7 +164,7 @@ if (darkModeBtn) {
         chatStatus.textContent = isOnline ? "Online" : "Offline";
     }
 
-    // --- SEARCH / FILTER USERS ---
+    // --- 5. SEARCH / FILTER USERS ---
     if (searchInput) {
         searchInput.addEventListener("input", (e) => {
             const query = e.target.value.toLowerCase().trim();
@@ -152,7 +179,7 @@ if (darkModeBtn) {
         });
     }
 
-    // --- LOAD CHAT HISTORY ---
+    // --- 6. LOAD CHAT HISTORY ---
     async function loadMessages(userId) {
         try {
             const response = await fetch(`/messages/${userId}`);
@@ -199,7 +226,7 @@ if (darkModeBtn) {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // --- SEND MESSAGE & TYPING EVENTS ---
+    // --- 7. SEND MESSAGE & TYPING EVENTS ---
     function sendMessage() {
         const text = messageInput.value.trim();
 
